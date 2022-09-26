@@ -1,0 +1,36 @@
+name: OpenRadioss
+on: [push]
+jobs: 
+  exec_OpenRadioss:
+    runs-on: ubuntu-latest
+    env: 
+      OPENRADIOSS_PATH: /tmp/OpenRadioss
+      RAD_CFG_PATH: /tmp/OpenRadioss/hm_cfg_files
+      OMP_STACKSIZE: 400m
+      LD_LIBRARY_PATH: /tmp/OpenRadioss/extlib/hm_reader/linux64/:/tmp/OpenRadioss/extlib/h3d/lib/linux64/:$LD_LIBRARY_PATH
+      UNZIP_LOG: OpenRadioss_linux64_unzip.log
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: download OpenRadioss
+        run: wget https://github.com/OpenRadioss/OpenRadioss/releases/download/latest-20220924/OpenRadioss_linux64.zip 
+      - name: unzip OpenRadioss
+        run: unzip OpenRadioss_linux64.zip > $UNZIP_LOG
+      - name: mv OpenRadioss
+        run: mv OpenRadioss /tmp
+      - name: starter
+        run: $OPENRADIOSS_PATH/exec/starter_linux64_gf -i $GITHUB_WORKSPACE/box_drop_openrs.k
+      - name: engine
+        run: $OPENRADIOSS_PATH/exec/engine_linux64_gf -i $GITHUB_WORKSPACE/box_drop_openrs_0001.rad -nt 2
+      - name: zip
+        run: zip -j box_drop.zip $GITHUB_WORKSPACE/box_drop* $UNZIP_LOG
+      - name: linode object storage
+        uses: s3-actions/s3cmd@v1.2.0
+        with:
+          provider: linode 
+          region: 'ap-south-1'
+          access_key: ${{ secrets.S3_ACCESS_KEY }}
+          secret_key: ${{ secrets.S3_SECRET_KEY }}
+      - name: Interact with object storage
+        run: |
+          s3cmd sync box_drop.zip s3://open-radioss-demo/box_drop.zip
